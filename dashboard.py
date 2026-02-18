@@ -38,24 +38,16 @@ async def lifespan(app: FastAPI):
     await database.seed_monitors()
     task = asyncio.create_task(monitor.start_all_monitors())
 
-    # Graceful shutdown via signal
-    loop = asyncio.get_event_loop()
-    shutdown_event = asyncio.Event()
-
-    def _shutdown():
-        logger.info("Shutdown signal received")
-        shutdown_event.set()
-
-    try:
-        for sig in (signal.SIGTERM, signal.SIGINT):
-            loop.add_signal_handler(sig, _shutdown)
-    except NotImplementedError:
-        pass  # Windows doesn't support add_signal_handler in all cases
-
     yield
 
-    # Cleanup
+    # Cleanup: cancel all monitor tasks + main task
+    logger.info("Shutting down...")
+    monitor.stop_all_tasks()
     task.cancel()
+    try:
+        await asyncio.wait_for(asyncio.shield(task), timeout=2)
+    except (asyncio.CancelledError, asyncio.TimeoutError):
+        pass
     await database.close_pool()
     logger.info("Shutdown complete")
 

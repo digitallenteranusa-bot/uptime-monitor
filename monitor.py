@@ -204,6 +204,15 @@ def stop_monitor_task(monitor_id: int):
         logger.info("Stopped monitoring task for monitor_id=%d", monitor_id)
 
 
+def stop_all_tasks():
+    """Cancel all active monitoring tasks (used during shutdown)."""
+    for mid, task in _active_tasks.items():
+        if not task.done():
+            task.cancel()
+    _active_tasks.clear()
+    logger.info("All monitoring tasks cancelled")
+
+
 def restart_monitor_task(mon: dict):
     """Stop and restart monitoring task (used after edit)."""
     stop_monitor_task(mon["id"])
