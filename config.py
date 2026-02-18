@@ -4,7 +4,6 @@ import os
 MONITORS = [
     {"name": "Cloudflare DNS", "target": "1.1.1.1", "type": "ping", "interval": 60},
     {"name": "Google DNS", "target": "8.8.8.8", "type": "ping", "interval": 60},
-    {"name": "Router Gateway", "target": "192.168.1.1", "type": "ping", "interval": 60},
 ]
 
 # === Retry Settings ===

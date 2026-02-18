@@ -80,6 +80,19 @@ async def init_db():
         await release_db(db)
 
 
+async def remove_monitor_by_target(target: str):
+    db = await get_db()
+    try:
+        cursor = await db.execute("SELECT id FROM monitors WHERE target=?", (target,))
+        row = await cursor.fetchone()
+        if row:
+            await db.execute("DELETE FROM logs WHERE monitor_id=?", (row["id"],))
+            await db.execute("DELETE FROM monitors WHERE id=?", (row["id"],))
+            await db.commit()
+    finally:
+        await release_db(db)
+
+
 async def seed_monitors():
     db = await get_db()
     try:

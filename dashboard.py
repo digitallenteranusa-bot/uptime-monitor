@@ -35,6 +35,7 @@ _sessions: dict[str, str] = {}  # token -> username
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await database.init_db()
+    await database.remove_monitor_by_target("192.168.1.1")
     await database.seed_monitors()
     task = asyncio.create_task(monitor.start_all_monitors())
 
