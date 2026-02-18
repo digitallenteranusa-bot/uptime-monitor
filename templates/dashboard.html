@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Uptime Monitor - Dashboard</title>
     <link rel="stylesheet" href="/static/style.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 </head>
 <body>
     <div class="container">
@@ -18,208 +17,250 @@
                     <a href="/logout" class="nav-link">Logout</a>
                 </nav>
             </div>
-            <p class="subtitle">Network Monitoring Dashboard</p>
         </header>
 
-        <!-- Form Tambah Monitor -->
-        <div class="add-form">
-            <h2>Tambah Monitor</h2>
-            <form id="addForm">
-                <div class="form-row">
-                    <input type="text" id="f-name" placeholder="Nama (contoh: Server Kantor)" required>
-                    <input type="text" id="f-target" placeholder="IP / Hostname / URL" required>
-                    <select id="f-type">
-                        <option value="ping">Ping (ICMP)</option>
-                        <option value="http">HTTP</option>
-                        <option value="tcp">TCP Port</option>
-                        <option value="dns">DNS</option>
-                    </select>
-                    <input type="number" id="f-port" placeholder="Port" min="1" max="65535" style="display:none">
-                    <input type="number" id="f-interval" placeholder="Interval (s)" value="60" min="10" max="3600">
-                    <button type="submit">Tambah</button>
-                </div>
-                <p id="form-msg" class="form-msg"></p>
-            </form>
+        <!-- Summary Bar -->
+        <div class="summary-bar">
+            <div class="summary-item">
+                <span class="summary-count" id="count-up">0</span>
+                <span class="summary-label">Up</span>
+            </div>
+            <div class="summary-item">
+                <span class="summary-count down" id="count-down">0</span>
+                <span class="summary-label">Down</span>
+            </div>
+            <div class="summary-item">
+                <span class="summary-count paused" id="count-unknown">0</span>
+                <span class="summary-label">Unknown</span>
+            </div>
         </div>
 
-        <!-- Edit Modal -->
-        <div id="editModal" class="modal" style="display:none">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h2>Edit Monitor</h2>
-                    <button class="btn-close" onclick="closeEditModal()">&times;</button>
-                </div>
-                <form id="editForm">
-                    <input type="hidden" id="e-id">
-                    <label>Nama</label>
-                    <input type="text" id="e-name" required>
-                    <label>Target</label>
-                    <input type="text" id="e-target" required>
-                    <label>Tipe</label>
-                    <select id="e-type">
-                        <option value="ping">Ping (ICMP)</option>
-                        <option value="http">HTTP</option>
-                        <option value="tcp">TCP Port</option>
-                        <option value="dns">DNS</option>
-                    </select>
-                    <label>Port <small>(khusus TCP)</small></label>
-                    <input type="number" id="e-port" min="1" max="65535" placeholder="Kosongkan jika bukan TCP">
-                    <label>Interval (detik)</label>
-                    <input type="number" id="e-interval" value="60" min="10" max="3600">
-                    <div class="modal-actions">
-                        <button type="button" class="btn-secondary" onclick="closeEditModal()">Batal</button>
-                        <button type="submit">Simpan</button>
+        <!-- Add Form (collapsible) -->
+        <div class="add-section">
+            <button class="btn-add-toggle" onclick="toggleAddForm()">+ Tambah Monitor</button>
+            <div class="add-form" id="addFormWrap" style="display:none">
+                <form id="addForm">
+                    <div class="form-row">
+                        <input type="text" id="f-name" placeholder="Nama (contoh: Server Kantor)" required>
+                        <input type="text" id="f-target" placeholder="IP / Hostname / URL" required>
+                        <select id="f-type">
+                            <option value="ping">Ping</option>
+                            <option value="http">HTTP</option>
+                            <option value="tcp">TCP</option>
+                            <option value="dns">DNS</option>
+                        </select>
+                        <input type="number" id="f-port" placeholder="Port" min="1" max="65535" style="display:none">
+                        <input type="number" id="f-interval" placeholder="Interval (s)" value="60" min="10" max="3600">
+                        <button type="submit">Tambah</button>
                     </div>
-                    <p id="edit-msg" class="form-msg"></p>
+                    <p id="form-msg" class="form-msg"></p>
                 </form>
             </div>
         </div>
 
-        <div class="cards">
+        <!-- Monitor List -->
+        <div class="monitor-list" id="monitorList">
             {% for m in monitors %}
-            <div class="card status-{{ m.status | lower }}" id="card-{{ m.id }}">
-                <div class="card-header">
-                    <span class="status-dot {{ m.status | lower }}"></span>
-                    <h3><a href="/monitor/{{ m.id }}" class="card-link">{{ m.name }}</a></h3>
-                    <span class="type-badge">{{ m.type | upper }}</span>
-                    <button class="btn-edit" onclick='openEditModal({{ m | tojson }})' title="Edit">&#9998;</button>
-                    <button class="btn-delete" onclick="deleteMonitor({{ m.id }}, '{{ m.name }}')" title="Hapus">&times;</button>
+            <div class="monitor-row" id="row-{{ m.id }}">
+                <div class="monitor-left">
+                    <span class="status-indicator {{ m.status | lower }}"></span>
+                    <div class="monitor-info">
+                        <div class="monitor-name-row">
+                            <a href="/monitor/{{ m.id }}" class="monitor-name">{{ m.name }}</a>
+                            <span class="type-badge">{{ m.type | upper }}</span>
+                        </div>
+                        <span class="monitor-target">{{ m.target }}{% if m.port %} :{{ m.port }}{% endif %}</span>
+                    </div>
                 </div>
-                <div class="card-body">
-                    <p class="target">{{ m.target }}{% if m.port %} :{{ m.port }}{% endif %}</p>
-                    <p class="status-text">{{ m.status }}</p>
-                    <p class="uptime">Uptime 7d: <strong>{{ m.uptime_7d }}%</strong></p>
+                <div class="monitor-center">
+                    <div class="heartbeat-bar" id="hb-{{ m.id }}" title="24 jam terakhir"></div>
                 </div>
-                <div class="card-chart">
-                    <canvas id="chart-{{ m.id }}" height="120"></canvas>
+                <div class="monitor-right">
+                    <div class="monitor-stats">
+                        <span class="monitor-uptime {{ 'good' if m.uptime_7d >= 99 else 'warn' if m.uptime_7d >= 95 else 'bad' }}">{{ m.uptime_7d }}%</span>
+                        <span class="monitor-latency" id="lat-{{ m.id }}">-</span>
+                    </div>
+                    <div class="monitor-actions">
+                        <button class="btn-icon" onclick='openEditModal({{ m | tojson }})' title="Edit">&#9998;</button>
+                        <button class="btn-icon danger" onclick="deleteMonitor({{ m.id }}, '{{ m.name }}')" title="Hapus">&times;</button>
+                    </div>
                 </div>
             </div>
             {% endfor %}
         </div>
+
+        <div class="timeline-legend">
+            <span><i class="legend-dot up"></i> Up</span>
+            <span><i class="legend-dot down"></i> Down</span>
+            <span><i class="legend-dot degraded"></i> Degraded</span>
+            <span><i class="legend-dot none"></i> No data</span>
+            <span class="legend-right">24 jam terakhir</span>
+        </div>
     </div>
 
-    <!-- Browser notification sound -->
+    <!-- Edit Modal -->
+    <div id="editModal" class="modal" style="display:none">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Edit Monitor</h2>
+                <button class="btn-close" onclick="closeEditModal()">&times;</button>
+            </div>
+            <form id="editForm">
+                <input type="hidden" id="e-id">
+                <label>Nama</label>
+                <input type="text" id="e-name" required>
+                <label>Target</label>
+                <input type="text" id="e-target" required>
+                <label>Tipe</label>
+                <select id="e-type">
+                    <option value="ping">Ping (ICMP)</option>
+                    <option value="http">HTTP</option>
+                    <option value="tcp">TCP Port</option>
+                    <option value="dns">DNS</option>
+                </select>
+                <label>Port <small>(khusus TCP)</small></label>
+                <input type="number" id="e-port" min="1" max="65535" placeholder="Kosongkan jika bukan TCP">
+                <label>Interval (detik)</label>
+                <input type="number" id="e-interval" value="60" min="10" max="3600">
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" onclick="closeEditModal()">Batal</button>
+                    <button type="submit">Simpan</button>
+                </div>
+                <p id="edit-msg" class="form-msg"></p>
+            </form>
+        </div>
+    </div>
+
+    <!-- Tooltip -->
+    <div id="tooltip" class="hb-tooltip" style="display:none"></div>
+
+    <!-- Alert Sound -->
     <audio id="alertSound" preload="none">
         <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdH2LkZeLgHRxeIGMk5KKgnp0eoSPlpWOhXx2eoOOl5aTi4N8eoGKk5iVjoaCfH2FjpWWk4yFf3yBipOYl5GMhH58gYqTmJaSi4R+fIGLk5eVkouDfnyBi5OXlZKLg358gYuTl5WSi4N+fIGLk5eVkouDfnyBi5OXlQ==" type="audio/wav">
     </audio>
 
     <script>
-        // Track previous statuses for browser notification
+        // === Summary counts ===
         let prevStatuses = {};
-        {% for m in monitors %}
-        prevStatuses[{{ m.id }}] = '{{ m.status }}';
-        {% endfor %}
+        const monitors = [
+            {% for m in monitors %}
+            {id: {{ m.id }}, name: "{{ m.name }}", status: "{{ m.status }}", uptime: {{ m.uptime_7d }}},
+            {% endfor %}
+        ];
 
-        // === Notification Permission ===
-        if ('Notification' in window && Notification.permission === 'default') {
-            Notification.requestPermission();
+        function updateSummary() {
+            let up = 0, down = 0, unknown = 0;
+            monitors.forEach(m => {
+                if (m.status === 'UP') up++;
+                else if (m.status === 'DOWN') down++;
+                else unknown++;
+                prevStatuses[m.id] = m.status;
+            });
+            document.getElementById('count-up').textContent = up;
+            document.getElementById('count-down').textContent = down;
+            document.getElementById('count-unknown').textContent = unknown;
         }
+        updateSummary();
 
-        function notifyBrowser(title, body) {
-            // Play sound
-            try { document.getElementById('alertSound').play(); } catch(e) {}
-            // Browser notification
-            if ('Notification' in window && Notification.permission === 'granted') {
-                new Notification(title, { body: body, icon: '/static/style.css' });
+        // === Load heartbeat bars ===
+        async function loadHeartbeats() {
+            for (const m of monitors) {
+                try {
+                    const resp = await fetch(`/api/heartbeat/${m.id}`);
+                    const bar = await resp.json();
+                    renderHeartbeat(m.id, bar);
+                } catch(e) {}
             }
         }
 
-        // === Show/hide port field ===
+        function renderHeartbeat(monitorId, data) {
+            const container = document.getElementById(`hb-${monitorId}`);
+            if (!container) return;
+            container.innerHTML = '';
+
+            // Find latest latency
+            let lastLatency = null;
+            for (let i = data.length - 1; i >= 0; i--) {
+                if (data[i].latency !== null) { lastLatency = data[i].latency; break; }
+            }
+            const latEl = document.getElementById(`lat-${monitorId}`);
+            if (latEl) latEl.textContent = lastLatency !== null ? lastLatency + ' ms' : '-';
+
+            data.forEach((slot, idx) => {
+                const el = document.createElement('div');
+                el.className = `hb-slot ${slot.status}`;
+
+                el.addEventListener('mouseenter', (e) => {
+                    const tooltip = document.getElementById('tooltip');
+                    const time = new Date(slot.time).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+                    const lat = slot.latency !== null ? slot.latency + ' ms' : '-';
+                    const st = slot.status === 'none' ? 'No data' : slot.status.toUpperCase();
+                    tooltip.innerHTML = `<strong>${time}</strong><br>Status: ${st}<br>Latency: ${lat}`;
+                    tooltip.style.display = 'block';
+
+                    const rect = el.getBoundingClientRect();
+                    tooltip.style.left = (rect.left + rect.width/2 - tooltip.offsetWidth/2) + 'px';
+                    tooltip.style.top = (rect.top - tooltip.offsetHeight - 8) + 'px';
+                });
+                el.addEventListener('mouseleave', () => {
+                    document.getElementById('tooltip').style.display = 'none';
+                });
+
+                container.appendChild(el);
+            });
+        }
+
+        loadHeartbeats();
+
+        // === Toggle add form ===
+        function toggleAddForm() {
+            const el = document.getElementById('addFormWrap');
+            el.style.display = el.style.display === 'none' ? 'block' : 'none';
+        }
+
+        // === Port field toggle ===
         document.getElementById('f-type').addEventListener('change', (e) => {
             document.getElementById('f-port').style.display = e.target.value === 'tcp' ? '' : 'none';
         });
 
-        const monitorIds = [{% for m in monitors %}{{ m.id }}{% if not loop.last %}, {% endif %}{% endfor %}];
-
-        async function loadCharts() {
-            for (const id of monitorIds) {
-                const resp = await fetch(`/api/logs/${id}`);
-                const logs = await resp.json();
-
-                const labels = logs.map(l => {
-                    const d = new Date(l.timestamp);
-                    return d.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
-                });
-                const data = logs.map(l => l.latency);
-                const colors = logs.map(l => l.status === 'UP' ? '#22c55e' : '#ef4444');
-
-                const ctx = document.getElementById(`chart-${id}`);
-                if (!ctx) continue;
-
-                new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: labels,
-                        datasets: [{
-                            label: 'Latency (ms)',
-                            data: data,
-                            borderColor: '#3b82f6',
-                            backgroundColor: 'rgba(59,130,246,0.1)',
-                            pointBackgroundColor: colors,
-                            pointRadius: 2,
-                            tension: 0.3,
-                            fill: true,
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: { legend: { display: false } },
-                        scales: {
-                            x: { display: true, ticks: { maxTicksLimit: 8, font: { size: 10 } } },
-                            y: { display: true, beginAtZero: true, title: { display: true, text: 'ms', font: { size: 10 } } }
-                        }
-                    }
-                });
-            }
-        }
-
-        loadCharts();
-
-        // === Tambah Monitor ===
+        // === Add Monitor ===
         document.getElementById('addForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const msg = document.getElementById('form-msg');
-            const name = document.getElementById('f-name').value.trim();
-            const target = document.getElementById('f-target').value.trim();
-            const type = document.getElementById('f-type').value;
-            const port = document.getElementById('f-port').value ? parseInt(document.getElementById('f-port').value) : null;
-            const interval = parseInt(document.getElementById('f-interval').value) || 60;
-
-            if (!name || !target) return;
+            const body = {
+                name: document.getElementById('f-name').value.trim(),
+                target: document.getElementById('f-target').value.trim(),
+                type: document.getElementById('f-type').value,
+                port: document.getElementById('f-port').value ? parseInt(document.getElementById('f-port').value) : null,
+                interval: parseInt(document.getElementById('f-interval').value) || 60,
+            };
+            if (!body.name || !body.target) return;
             msg.textContent = 'Menambahkan...';
-            msg.className = 'form-msg';
 
             const resp = await fetch('/api/monitors', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({name, target, type, port, interval})
+                body: JSON.stringify(body)
             });
             const data = await resp.json();
-
             if (data.ok) {
-                msg.textContent = `${name} berhasil ditambahkan!`;
-                msg.className = 'form-msg success';
-                setTimeout(() => location.reload(), 1000);
+                msg.textContent = 'Berhasil!'; msg.className = 'form-msg success';
+                setTimeout(() => location.reload(), 800);
             } else {
-                msg.textContent = data.error || 'Gagal menambahkan';
-                msg.className = 'form-msg error';
+                msg.textContent = data.error || 'Gagal'; msg.className = 'form-msg error';
             }
         });
 
-        // === Hapus Monitor ===
+        // === Delete Monitor ===
         async function deleteMonitor(id, name) {
             if (!confirm(`Hapus monitor "${name}"?\nSemua log akan ikut terhapus.`)) return;
             const resp = await fetch(`/api/monitors/${id}`, {method: 'DELETE'});
             const data = await resp.json();
-            if (data.ok) {
-                document.getElementById(`card-${id}`)?.remove();
-            } else {
-                alert(data.error || 'Gagal menghapus');
-            }
+            if (data.ok) document.getElementById(`row-${id}`)?.remove();
+            else alert(data.error || 'Gagal menghapus');
         }
 
-        // === Edit Monitor ===
+        // === Edit Modal ===
         function openEditModal(mon) {
             document.getElementById('e-id').value = mon.id;
             document.getElementById('e-name').value = mon.name;
@@ -230,16 +271,12 @@
             document.getElementById('edit-msg').textContent = '';
             document.getElementById('editModal').style.display = 'flex';
         }
-
-        function closeEditModal() {
-            document.getElementById('editModal').style.display = 'none';
-        }
+        function closeEditModal() { document.getElementById('editModal').style.display = 'none'; }
 
         document.getElementById('editForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const id = document.getElementById('e-id').value;
             const msg = document.getElementById('edit-msg');
-
             const body = {
                 name: document.getElementById('e-name').value.trim(),
                 target: document.getElementById('e-target').value.trim(),
@@ -247,46 +284,48 @@
                 port: document.getElementById('e-port').value ? parseInt(document.getElementById('e-port').value) : null,
                 interval: parseInt(document.getElementById('e-interval').value) || 60,
             };
-
             const resp = await fetch(`/api/monitors/${id}`, {
                 method: 'PUT',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify(body)
             });
             const data = await resp.json();
-
             if (data.ok) {
-                msg.textContent = 'Berhasil disimpan!';
-                msg.className = 'form-msg success';
+                msg.textContent = 'Tersimpan!'; msg.className = 'form-msg success';
                 setTimeout(() => location.reload(), 800);
             } else {
-                msg.textContent = data.error || 'Gagal menyimpan';
-                msg.className = 'form-msg error';
+                msg.textContent = data.error || 'Gagal'; msg.className = 'form-msg error';
             }
         });
 
-        // === Polling for status changes (browser notifications) ===
+        // === Browser Notifications ===
+        if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission();
+        }
+        function notifyBrowser(title, body) {
+            try { document.getElementById('alertSound').play(); } catch(e) {}
+            if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification(title, { body });
+            }
+        }
+
         async function pollStatus() {
             try {
                 const resp = await fetch('/api/monitors');
-                const monitors = await resp.json();
-                for (const m of monitors) {
+                const data = await resp.json();
+                for (const m of data) {
                     const prev = prevStatuses[m.id];
                     if (prev && prev !== m.status) {
-                        if (m.status === 'DOWN') {
-                            notifyBrowser('Monitor DOWN!', `${m.name} (${m.target}) sedang DOWN`);
-                        } else if (m.status === 'UP' && prev === 'DOWN') {
-                            notifyBrowser('Monitor Recovered', `${m.name} (${m.target}) kembali UP`);
-                        }
+                        if (m.status === 'DOWN') notifyBrowser('Monitor DOWN!', `${m.name} (${m.target}) DOWN`);
+                        else if (m.status === 'UP' && prev === 'DOWN') notifyBrowser('Monitor UP', `${m.name} kembali UP`);
                     }
                     prevStatuses[m.id] = m.status;
                 }
             } catch(e) {}
         }
 
-        // Poll every 30s for browser notifications, full reload every 60s
         setInterval(pollStatus, 30000);
-        setInterval(() => location.reload(), 60000);
+        setInterval(() => location.reload(), 90000);
     </script>
 </body>
 </html>

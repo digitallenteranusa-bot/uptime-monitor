@@ -227,6 +227,53 @@ async def get_logs_all(monitor_id: int, limit: int = 500) -> list[dict]:
         await release_db(db)
 
 
+async def get_heartbeat_bar(monitor_id: int, slots: int = 90) -> list[dict]:
+    """Get aggregated status data for the heartbeat bar (last 24h, divided into slots)."""
+    db = await get_db()
+    try:
+        now = datetime.now(timezone.utc)
+        since = now - timedelta(hours=24)
+        slot_duration = timedelta(hours=24) / slots
+
+        cursor = await db.execute(
+            "SELECT status, latency, timestamp FROM logs WHERE monitor_id=? AND timestamp>=? ORDER BY timestamp",
+            (monitor_id, since.isoformat()),
+        )
+        rows = await cursor.fetchall()
+        logs = [dict(r) for r in rows]
+
+        bar = []
+        for i in range(slots):
+            slot_start = since + (slot_duration * i)
+            slot_end = slot_start + slot_duration
+
+            slot_logs = [
+                l for l in logs
+                if slot_start.isoformat() <= l["timestamp"] < slot_end.isoformat()
+            ]
+
+            if not slot_logs:
+                bar.append({"status": "none", "latency": None, "time": slot_start.isoformat()})
+            else:
+                down_count = sum(1 for l in slot_logs if l["status"] == "DOWN")
+                up_count = sum(1 for l in slot_logs if l["status"] == "UP")
+                latencies = [l["latency"] for l in slot_logs if l["latency"] is not None]
+                avg_latency = round(sum(latencies) / len(latencies), 1) if latencies else None
+
+                if down_count > 0 and up_count > 0:
+                    status = "degraded"
+                elif down_count > 0:
+                    status = "down"
+                else:
+                    status = "up"
+
+                bar.append({"status": status, "latency": avg_latency, "time": slot_start.isoformat()})
+
+        return bar
+    finally:
+        await release_db(db)
+
+
 async def get_uptime_7d(monitor_id: int) -> float:
     db = await get_db()
     try:

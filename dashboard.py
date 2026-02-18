@@ -217,6 +217,12 @@ async def api_monitors(user: str = Depends(require_auth)):
     return result
 
 
+@app.get("/api/heartbeat/{monitor_id}")
+async def api_heartbeat(monitor_id: int, user: str = Depends(require_auth)):
+    bar = await database.get_heartbeat_bar(monitor_id)
+    return bar
+
+
 class MonitorCreate(BaseModel):
     name: str
     target: str
