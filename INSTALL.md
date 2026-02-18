@@ -214,7 +214,6 @@ Atau buat file `.env` lalu restart service.
 MONITORS = [
     {"name": "Cloudflare DNS", "target": "1.1.1.1", "type": "ping", "interval": 60},
     {"name": "Google DNS", "target": "8.8.8.8", "type": "ping", "interval": 60},
-    {"name": "Router Gateway", "target": "192.168.1.1", "type": "ping", "interval": 60},
     # Tambahkan di sini:
     {"name": "Web Server", "target": "https://example.com", "type": "http", "interval": 30},
     {"name": "Mail Server", "target": "mail.example.com", "type": "tcp", "port": 25, "interval": 120},
