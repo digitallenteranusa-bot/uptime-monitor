@@ -183,6 +183,16 @@ async def status_page(request: Request):
 
 
 # ============================
+# Public API (No Auth)
+# ============================
+
+@app.get("/api/public/heartbeat/{monitor_id}")
+async def api_public_heartbeat(monitor_id: int):
+    bar = await database.get_heartbeat_bar(monitor_id)
+    return bar
+
+
+# ============================
 # Health Check (No Auth)
 # ============================
 

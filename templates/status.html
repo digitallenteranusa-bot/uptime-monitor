@@ -3,7 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="refresh" content="30">
     <title>Status - Uptime Monitor</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
@@ -16,29 +15,88 @@
 
         <div class="status-list">
             {% for m in monitors %}
-            <div class="status-row">
-                <span class="status-dot {{ m.status | lower }}"></span>
-                <div class="status-info">
-                    <strong>{{ m.name }}</strong>
-                    <span class="target-small">Monitoring aktif</span>
+            <div class="status-row-v2">
+                <div class="status-row-top">
+                    <span class="status-dot {{ m.status | lower }}"></span>
+                    <div class="status-info">
+                        <strong>{{ m.name }}</strong>
+                    </div>
+                    <div class="status-right">
+                        <span class="badge {{ m.status | lower }}">{{ m.status }}</span>
+                        <span class="uptime-small">{{ m.uptime_7d }}%</span>
+                    </div>
                 </div>
-                <div class="status-right">
-                    <span class="badge {{ m.status | lower }}">{{ m.status }}</span>
-                    <span class="uptime-small">{{ m.uptime_7d }}%</span>
+                <div class="status-hb">
+                    <div class="heartbeat-bar" id="hb-{{ m.id }}"></div>
                 </div>
             </div>
             {% endfor %}
+        </div>
+
+        <div class="timeline-legend" style="justify-content:center">
+            <span><i class="legend-dot up"></i> Up</span>
+            <span><i class="legend-dot down"></i> Down</span>
+            <span><i class="legend-dot degraded"></i> Degraded</span>
+            <span><i class="legend-dot none"></i> No data</span>
         </div>
 
         <footer>
             <p>Uptime Monitor &mdash; dibuat oleh <strong>Digital Lentera Nusa</strong></p>
         </footer>
     </div>
+
+    <!-- Tooltip -->
+    <div id="tooltip" class="hb-tooltip" style="display:none"></div>
+
     <script>
-        // Show local timezone
         document.getElementById('localTime').textContent =
             new Date().toLocaleString([], {dateStyle: 'medium', timeStyle: 'short'}) +
             ' (' + Intl.DateTimeFormat().resolvedOptions().timeZone + ')';
+
+        const monitorIds = [{% for m in monitors %}{{ m.id }}{% if not loop.last %}, {% endif %}{% endfor %}];
+
+        async function loadHeartbeats() {
+            for (const id of monitorIds) {
+                try {
+                    const resp = await fetch(`/api/public/heartbeat/${id}`);
+                    const bar = await resp.json();
+                    renderHeartbeat(id, bar);
+                } catch(e) {}
+            }
+        }
+
+        function renderHeartbeat(monitorId, data) {
+            const container = document.getElementById(`hb-${monitorId}`);
+            if (!container) return;
+            container.innerHTML = '';
+
+            data.forEach((slot) => {
+                const el = document.createElement('div');
+                el.className = `hb-slot ${slot.status}`;
+
+                el.addEventListener('mouseenter', () => {
+                    const tooltip = document.getElementById('tooltip');
+                    const lat = slot.latency !== null ? slot.latency + ' ms' : '-';
+                    const st = slot.status === 'none' ? 'No data' : slot.status.toUpperCase();
+                    tooltip.innerHTML = `<strong>${slot.time} UTC</strong><br>Status: ${st}<br>Latency: ${lat}`;
+                    tooltip.style.display = 'block';
+
+                    const rect = el.getBoundingClientRect();
+                    tooltip.style.left = Math.max(0, rect.left + rect.width/2 - tooltip.offsetWidth/2) + 'px';
+                    tooltip.style.top = (rect.top - tooltip.offsetHeight - 8 + window.scrollY) + 'px';
+                });
+                el.addEventListener('mouseleave', () => {
+                    document.getElementById('tooltip').style.display = 'none';
+                });
+
+                container.appendChild(el);
+            });
+        }
+
+        loadHeartbeats();
+
+        // Auto-refresh every 30 seconds
+        setTimeout(() => location.reload(), 30000);
     </script>
 </body>
 </html>
