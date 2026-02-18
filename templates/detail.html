@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ monitor.name }} - Uptime Monitor</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-row">
+                <h1><a href="/" class="back-link">&larr;</a> {{ monitor.name }}</h1>
+                <nav>
+                    <a href="/api/export/{{ monitor.id }}/csv" class="nav-link">Export CSV</a>
+                    <a href="/api/export/{{ monitor.id }}/json" class="nav-link">Export JSON</a>
+                </nav>
+            </div>
+        </header>
+
+        <!-- Status Banner -->
+        <div class="detail-banner status-{{ monitor.status | lower }}">
+            <div class="banner-left">
+                <span class="status-dot big {{ monitor.status | lower }}"></span>
+                <div>
+                    <p class="banner-status">{{ monitor.status }}</p>
+                    <p class="banner-target">{{ monitor.target }}{% if monitor.port %} :{{ monitor.port }}{% endif %} &middot; {{ monitor.type | upper }} &middot; setiap {{ monitor.interval }}s</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats Grid -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <p class="stat-label">Uptime 24 Jam</p>
+                <p class="stat-value">{{ stats.uptime_24h }}%</p>
+            </div>
+            <div class="stat-card">
+                <p class="stat-label">Uptime 7 Hari</p>
+                <p class="stat-value">{{ stats.uptime_7d }}%</p>
+            </div>
+            <div class="stat-card">
+                <p class="stat-label">Uptime 30 Hari</p>
+                <p class="stat-value">{{ stats.uptime_30d }}%</p>
+            </div>
+            <div class="stat-card">
+                <p class="stat-label">Insiden 7 Hari</p>
+                <p class="stat-value">{{ stats.incidents_7d }}</p>
+            </div>
+            <div class="stat-card">
+                <p class="stat-label">Latency Rata-rata</p>
+                <p class="stat-value">{{ stats.avg_latency or '-' }} ms</p>
+            </div>
+            <div class="stat-card">
+                <p class="stat-label">Latency Min / Max</p>
+                <p class="stat-value">{{ stats.min_latency or '-' }} / {{ stats.max_latency or '-' }} ms</p>
+            </div>
+            <div class="stat-card">
+                <p class="stat-label">Total Pengecekan</p>
+                <p class="stat-value">{{ stats.total_checks }}</p>
+            </div>
+        </div>
+
+        <!-- Chart -->
+        <div class="detail-chart-wrapper">
+            <h2>Latency 24 Jam</h2>
+            <div class="detail-chart">
+                <canvas id="latencyChart" height="250"></canvas>
+            </div>
+        </div>
+
+        <!-- Log Table -->
+        <div class="log-section">
+            <h2>Log Terbaru</h2>
+            <div class="log-table-wrap">
+                <table class="log-table">
+                    <thead>
+                        <tr>
+                            <th>Waktu</th>
+                            <th>Status</th>
+                            <th>Latency</th>
+                            <th>Downtime</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const monitorId = {{ monitor.id }};
+
+        function formatDuration(sec) {
+            if (!sec) return '-';
+            if (sec < 60) return sec.toFixed(0) + 's';
+            if (sec < 3600) return (sec/60).toFixed(1) + 'm';
+            return (sec/3600).toFixed(1) + 'h';
+        }
+
+        async function load() {
+            // Chart
+            const resp = await fetch(`/api/logs/${monitorId}`);
+            const logs = await resp.json();
+
+            const labels = logs.map(l => {
+                const d = new Date(l.timestamp);
+                return d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+            });
+            const data = logs.map(l => l.latency);
+            const colors = logs.map(l => l.status === 'UP' ? '#22c55e' : '#ef4444');
+
+            new Chart(document.getElementById('latencyChart'), {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [{
+                        label: 'Latency (ms)',
+                        data,
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59,130,246,0.1)',
+                        pointBackgroundColor: colors,
+                        pointRadius: 3,
+                        tension: 0.3,
+                        fill: true,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { ticks: { maxTicksLimit: 12, font: { size: 11 }, color: '#94a3b8' }, grid: { color: '#1e293b' } },
+                        y: { beginAtZero: true, title: { display: true, text: 'ms', color: '#94a3b8' }, ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' } }
+                    }
+                }
+            });
+
+            // Log table
+            const resp2 = await fetch(`/api/logs/${monitorId}/all`);
+            const allLogs = await resp2.json();
+
+            const tbody = document.getElementById('logBody');
+            // Show last 100, newest first
+            const recent = allLogs.slice(-100).reverse();
+            tbody.innerHTML = recent.map(l => {
+                const time = new Date(l.timestamp).toLocaleString();
+                const cls = l.status === 'UP' ? 'up' : 'down';
+                return `<tr>
+                    <td>${time}</td>
+                    <td><span class="badge ${cls}">${l.status}</span></td>
+                    <td>${l.latency !== null ? l.latency + ' ms' : '-'}</td>
+                    <td>${formatDuration(l.downtime_duration)}</td>
+                </tr>`;
+            }).join('');
+        }
+
+        load();
+    </script>
+</body>
+</html>

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="refresh" content="30">
+    <title>Status - Uptime Monitor</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container status-page">
+        <header>
+            <h1>System Status</h1>
+            <p class="subtitle">Auto-refresh setiap 30 detik &middot; <span id="localTime"></span></p>
+        </header>
+
+        <div class="status-list">
+            {% for m in monitors %}
+            <div class="status-row">
+                <span class="status-dot {{ m.status | lower }}"></span>
+                <div class="status-info">
+                    <strong>{{ m.name }}</strong>
+                    <span class="target-small">{{ m.target }} &middot; {{ m.type | upper }}</span>
+                </div>
+                <div class="status-right">
+                    <span class="badge {{ m.status | lower }}">{{ m.status }}</span>
+                    <span class="uptime-small">{{ m.uptime_7d }}%</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <footer>
+            <p>Uptime Monitor</p>
+        </footer>
+    </div>
+    <script>
+        // Show local timezone
+        document.getElementById('localTime').textContent =
+            new Date().toLocaleString([], {dateStyle: 'medium', timeStyle: 'short'}) +
+            ' (' + Intl.DateTimeFormat().resolvedOptions().timeZone + ')';
+    </script>
+</body>
+</html>

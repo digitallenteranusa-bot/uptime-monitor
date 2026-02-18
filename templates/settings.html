@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pengaturan - Uptime Monitor</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container settings-page">
+        <header>
+            <div class="header-row">
+                <h1><a href="/" class="back-link">&larr;</a> Pengaturan</h1>
+            </div>
+        </header>
+
+        <!-- Telegram Settings -->
+        <div class="settings-section">
+            <h2>Notifikasi Telegram</h2>
+            <p class="settings-desc">Masukkan token Bot Telegram dan Chat ID untuk menerima notifikasi saat status monitor berubah.</p>
+            <form id="tgForm">
+                <label>Bot Token</label>
+                <input type="text" id="tg-token" value="{{ tg_token }}" placeholder="123456:ABC-DEF...">
+                <label>Chat ID</label>
+                <input type="text" id="tg-chat" value="{{ tg_chat }}" placeholder="-100123456789">
+                <div class="form-actions">
+                    <button type="submit">Simpan</button>
+                    <button type="button" id="btnTestTg" class="btn-secondary">Tes Kirim</button>
+                </div>
+                <p id="tg-msg" class="form-msg"></p>
+            </form>
+        </div>
+
+        <!-- Info -->
+        <div class="settings-section">
+            <h2>Informasi Sistem</h2>
+            <div class="info-grid">
+                <div class="info-item">
+                    <span class="info-label">Alert Cooldown</span>
+                    <span class="info-value">{{ cooldown }} detik</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Retensi Log</span>
+                    <span class="info-value">{{ retention }} hari</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Health Check</span>
+                    <span class="info-value"><a href="/health" target="_blank" class="nav-link">/health</a></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('tgForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const msg = document.getElementById('tg-msg');
+            const resp = await fetch('/api/settings/telegram', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    bot_token: document.getElementById('tg-token').value.trim(),
+                    chat_id: document.getElementById('tg-chat').value.trim(),
+                })
+            });
+            const data = await resp.json();
+            msg.textContent = data.ok ? 'Tersimpan!' : (data.error || 'Gagal');
+            msg.className = data.ok ? 'form-msg success' : 'form-msg error';
+        });
+
+        document.getElementById('btnTestTg').addEventListener('click', async () => {
+            const msg = document.getElementById('tg-msg');
+            msg.textContent = 'Mengirim tes...';
+            msg.className = 'form-msg';
+            const resp = await fetch('/api/settings/telegram/test', { method: 'POST' });
+            const data = await resp.json();
+            msg.textContent = data.ok ? 'Pesan tes terkirim!' : (data.error || 'Gagal');
+            msg.className = data.ok ? 'form-msg success' : 'form-msg error';
+        });
+    </script>
+</body>
+</html>
