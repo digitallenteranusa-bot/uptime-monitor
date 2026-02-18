@@ -96,6 +96,10 @@
             <span><i class="legend-dot none"></i> No data</span>
             <span class="legend-right">24 jam terakhir</span>
         </div>
+
+        <footer>
+            <p>Uptime Monitor &mdash; dibuat oleh <strong>Digital Lentera Nusa</strong></p>
+        </footer>
     </div>
 
     <!-- Edit Modal -->
@@ -192,15 +196,14 @@
 
                 el.addEventListener('mouseenter', (e) => {
                     const tooltip = document.getElementById('tooltip');
-                    const time = new Date(slot.time).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
                     const lat = slot.latency !== null ? slot.latency + ' ms' : '-';
                     const st = slot.status === 'none' ? 'No data' : slot.status.toUpperCase();
-                    tooltip.innerHTML = `<strong>${time}</strong><br>Status: ${st}<br>Latency: ${lat}`;
+                    tooltip.innerHTML = `<strong>${slot.time} UTC</strong><br>Status: ${st}<br>Latency: ${lat}`;
                     tooltip.style.display = 'block';
 
                     const rect = el.getBoundingClientRect();
-                    tooltip.style.left = (rect.left + rect.width/2 - tooltip.offsetWidth/2) + 'px';
-                    tooltip.style.top = (rect.top - tooltip.offsetHeight - 8) + 'px';
+                    tooltip.style.left = Math.max(0, rect.left + rect.width/2 - tooltip.offsetWidth/2) + 'px';
+                    tooltip.style.top = (rect.top - tooltip.offsetHeight - 8 + window.scrollY) + 'px';
                 });
                 el.addEventListener('mouseleave', () => {
                     document.getElementById('tooltip').style.display = 'none';

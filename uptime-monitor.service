@@ -1,0 +1,16 @@
+[Unit]
+Description=Uptime Monitor - Network Monitoring System
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/uptime-monitor
+ExecStart=/opt/uptime-monitor/venv/bin/python3 /opt/uptime-monitor/dashboard.py
+Restart=always
+RestartSec=5
+StandardOutput=append:/opt/uptime-monitor/data/app.log
+StandardError=append:/opt/uptime-monitor/data/app.log
+
+[Install]
+WantedBy=multi-user.target

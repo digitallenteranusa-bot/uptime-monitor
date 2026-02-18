@@ -233,27 +233,41 @@ async def get_heartbeat_bar(monitor_id: int, slots: int = 90) -> list[dict]:
     try:
         now = datetime.now(timezone.utc)
         since = now - timedelta(hours=24)
-        slot_duration = timedelta(hours=24) / slots
+        slot_seconds = 86400 / slots  # 24h in seconds / slots
 
         cursor = await db.execute(
             "SELECT status, latency, timestamp FROM logs WHERE monitor_id=? AND timestamp>=? ORDER BY timestamp",
             (monitor_id, since.isoformat()),
         )
         rows = await cursor.fetchall()
-        logs = [dict(r) for r in rows]
 
+        # Parse all log timestamps to epoch for reliable comparison
+        parsed_logs = []
+        for r in rows:
+            row = dict(r)
+            try:
+                ts = datetime.fromisoformat(row["timestamp"])
+                if ts.tzinfo is None:
+                    ts = ts.replace(tzinfo=timezone.utc)
+                row["_epoch"] = ts.timestamp()
+            except (ValueError, TypeError):
+                continue
+            parsed_logs.append(row)
+
+        since_epoch = since.timestamp()
         bar = []
         for i in range(slots):
-            slot_start = since + (slot_duration * i)
-            slot_end = slot_start + slot_duration
+            slot_start_epoch = since_epoch + (slot_seconds * i)
+            slot_end_epoch = slot_start_epoch + slot_seconds
+            slot_time = datetime.fromtimestamp(slot_start_epoch, tz=timezone.utc)
 
             slot_logs = [
-                l for l in logs
-                if slot_start.isoformat() <= l["timestamp"] < slot_end.isoformat()
+                l for l in parsed_logs
+                if slot_start_epoch <= l["_epoch"] < slot_end_epoch
             ]
 
             if not slot_logs:
-                bar.append({"status": "none", "latency": None, "time": slot_start.isoformat()})
+                bar.append({"status": "none", "latency": None, "time": slot_time.strftime("%H:%M")})
             else:
                 down_count = sum(1 for l in slot_logs if l["status"] == "DOWN")
                 up_count = sum(1 for l in slot_logs if l["status"] == "UP")
@@ -267,7 +281,7 @@ async def get_heartbeat_bar(monitor_id: int, slots: int = 90) -> list[dict]:
                 else:
                     status = "up"
 
-                bar.append({"status": status, "latency": avg_latency, "time": slot_start.isoformat()})
+                bar.append({"status": status, "latency": avg_latency, "time": slot_time.strftime("%H:%M")})
 
         return bar
     finally:
