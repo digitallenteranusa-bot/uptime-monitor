@@ -309,6 +309,12 @@ async def api_monitor_stats(monitor_id: int, user: str = Depends(require_auth)):
     return stats
 
 
+@app.get("/api/monitor/{monitor_id}/incidents")
+async def api_monitor_incidents(monitor_id: int, user: str = Depends(require_auth)):
+    incidents = await database.get_incidents_7d(monitor_id)
+    return incidents
+
+
 # === Export ===
 
 @app.get("/api/export/{monitor_id}/json")

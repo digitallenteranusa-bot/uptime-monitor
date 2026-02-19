@@ -44,9 +44,10 @@
                 <p class="stat-label">Uptime 30 Hari</p>
                 <p class="stat-value">{{ stats.uptime_30d }}%</p>
             </div>
-            <div class="stat-card">
+            <div class="stat-card clickable" onclick="document.getElementById('incidents-section').scrollIntoView({behavior:'smooth'})">
                 <p class="stat-label">Insiden 7 Hari</p>
                 <p class="stat-value">{{ stats.incidents_7d }}</p>
+                <p class="stat-hint">Lihat detail &darr;</p>
             </div>
             <div class="stat-card">
                 <p class="stat-label">Latency Rata-rata</p>
@@ -67,6 +68,26 @@
             <h2>Latency 24 Jam</h2>
             <div class="detail-chart">
                 <canvas id="latencyChart" height="250"></canvas>
+            </div>
+        </div>
+
+        <!-- Incidents Table -->
+        <div class="log-section" id="incidents-section">
+            <h2>Insiden 7 Hari</h2>
+            <div class="log-table-wrap">
+                <table class="log-table">
+                    <thead>
+                        <tr>
+                            <th>Waktu Mulai</th>
+                            <th>Tipe</th>
+                            <th>Durasi / Latency</th>
+                            <th>Pulih Pukul</th>
+                        </tr>
+                    </thead>
+                    <tbody id="incidentsBody">
+                        <tr><td colspan="4" style="text-align:center;color:#64748b">Memuat...</td></tr>
+                    </tbody>
+                </table>
             </div>
         </div>
 
@@ -97,6 +118,37 @@
             if (sec < 60) return sec.toFixed(0) + 's';
             if (sec < 3600) return (sec/60).toFixed(1) + 'm';
             return (sec/3600).toFixed(1) + 'h';
+        }
+
+        async function loadIncidents() {
+            const resp = await fetch(`/api/monitor/${monitorId}/incidents`);
+            const incidents = await resp.json();
+            const tbody = document.getElementById('incidentsBody');
+            if (!incidents.length) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#22c55e">Tidak ada insiden dalam 7 hari terakhir</td></tr>';
+                return;
+            }
+            tbody.innerHTML = incidents.map(inc => {
+                const startTime = new Date(inc.started_at).toLocaleString('id-ID', {
+                    day:'2-digit', month:'short', year:'numeric',
+                    hour:'2-digit', minute:'2-digit', second:'2-digit'
+                });
+                const recoverTime = inc.recovered_at
+                    ? new Date(inc.recovered_at).toLocaleString('id-ID', {hour:'2-digit', minute:'2-digit', second:'2-digit'})
+                    : '-';
+                const typeBadge = inc.type === 'down'
+                    ? '<span class="badge down">DOWN</span>'
+                    : '<span class="badge degraded">PING TINGGI</span>';
+                const detail = inc.type === 'down'
+                    ? formatDuration(inc.duration)
+                    : `${inc.latency} ms`;
+                return `<tr>
+                    <td>${startTime}</td>
+                    <td>${typeBadge}</td>
+                    <td>${detail}</td>
+                    <td>${recoverTime}</td>
+                </tr>`;
+            }).join('');
         }
 
         async function load() {
@@ -157,6 +209,7 @@
         }
 
         load();
+        loadIncidents();
     </script>
 </body>
 </html>

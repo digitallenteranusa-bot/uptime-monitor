@@ -369,6 +369,58 @@ async def get_monitor_stats(monitor_id: int) -> dict:
         await release_db(db)
 
 
+async def get_incidents_7d(monitor_id: int) -> list[dict]:
+    """Daftar insiden (DOWN & ping tinggi) dalam 7 hari terakhir."""
+    db = await get_db()
+    try:
+        since_7d = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+        incidents = []
+
+        # Insiden DOWN: log UP yang punya downtime_duration (= recovery)
+        cursor = await db.execute(
+            "SELECT timestamp, downtime_duration FROM logs "
+            "WHERE monitor_id=? AND timestamp>=? AND downtime_duration IS NOT NULL "
+            "ORDER BY timestamp DESC",
+            (monitor_id, since_7d),
+        )
+        rows = await cursor.fetchall()
+        for row in rows:
+            recovery_time = datetime.fromisoformat(row["timestamp"])
+            if recovery_time.tzinfo is None:
+                recovery_time = recovery_time.replace(tzinfo=timezone.utc)
+            duration_sec = row["downtime_duration"]
+            start_time = recovery_time - timedelta(seconds=duration_sec)
+            incidents.append({
+                "type": "down",
+                "started_at": start_time.isoformat(),
+                "recovered_at": row["timestamp"],
+                "duration": duration_sec,
+                "latency": None,
+            })
+
+        # Ping tinggi: log UP dengan latency > 200ms
+        cursor = await db.execute(
+            "SELECT timestamp, latency FROM logs "
+            "WHERE monitor_id=? AND timestamp>=? AND latency > 200 AND status='UP' "
+            "ORDER BY timestamp DESC",
+            (monitor_id, since_7d),
+        )
+        rows = await cursor.fetchall()
+        for row in rows:
+            incidents.append({
+                "type": "high_ping",
+                "started_at": row["timestamp"],
+                "recovered_at": None,
+                "duration": None,
+                "latency": row["latency"],
+            })
+
+        incidents.sort(key=lambda x: x["started_at"], reverse=True)
+        return incidents
+    finally:
+        await release_db(db)
+
+
 async def cleanup_old_logs():
     """Hapus log lebih lama dari LOG_RETENTION_DAYS."""
     db = await get_db()

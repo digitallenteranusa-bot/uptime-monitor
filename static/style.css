@@ -458,6 +458,12 @@ nav { display: flex; gap: 1rem; }
     padding: 1rem;
     text-align: center;
 }
+.stat-card.clickable {
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.stat-card.clickable:hover { background: #273549; }
+.stat-hint { font-size: 0.7rem; color: #3b82f6; margin-top: 0.2rem; }
 
 .stat-label {
     color: #64748b;
@@ -601,6 +607,7 @@ nav { display: flex; gap: 1rem; }
 .badge.up { background: #22c55e22; color: #22c55e; }
 .badge.down { background: #ef444422; color: #ef4444; }
 .badge.unknown { background: #6b728022; color: #6b7280; }
+.badge.degraded { background: #f59e0b22; color: #f59e0b; }
 
 .uptime-small { font-size: 0.8rem; color: #94a3b8; min-width: 50px; text-align: right; }
 
