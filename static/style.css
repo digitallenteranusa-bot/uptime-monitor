@@ -555,9 +555,13 @@ nav { display: flex; gap: 1rem; }
 .info-value { color: #f1f5f9; font-size: 0.85rem; font-weight: 600; }
 
 /* === Status Page (Public) === */
-.status-page { max-width: 700px; }
+.status-page { max-width: 1400px; }
 
-.status-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.status-list { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem; }
+
+@media (max-width: 700px) {
+    .status-list { grid-template-columns: 1fr; }
+}
 
 .status-row-v2 {
     background: #1e293b;
