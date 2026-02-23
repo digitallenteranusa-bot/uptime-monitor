@@ -2,9 +2,6 @@
 
 Sistem monitoring jaringan dan website yang ringan, self-hosted, dan real-time. Dibangun dengan Python + FastAPI.
 
-Dibuat oleh **Agus Setyono** — Trenggalek, Indonesia.
-
-Dikembangkan bersama **Digital Lentera Nusa**.
 
 ---
 
@@ -312,6 +309,6 @@ MIT License
 
 ---
 
-Dibuat dengan oleh **Agus Setyono** — Trenggalek, Indonesia
+Dibuat oleh **Agus Setyono** — Trenggalek, Indonesia
 
-Dikembangkan bersama **Digital Lentera Nusa**
+Dikembangkan bersama **PT Digital Lentera Nusa**
