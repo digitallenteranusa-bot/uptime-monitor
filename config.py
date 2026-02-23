@@ -4,6 +4,14 @@ import os
 MONITORS = [
     {"name": "Cloudflare DNS", "target": "1.1.1.1", "type": "ping", "interval": 60},
     {"name": "Google DNS", "target": "8.8.8.8", "type": "ping", "interval": 60},
+    {"name": "Facebook", "target": "https://www.facebook.com", "type": "http", "interval": 60},
+    {"name": "YouTube", "target": "https://www.youtube.com", "type": "http", "interval": 60},
+    {"name": "TikTok", "target": "https://www.tiktok.com", "type": "http", "interval": 60},
+    {"name": "WhatsApp", "target": "https://web.whatsapp.com", "type": "http", "interval": 60},
+    {"name": "Instagram", "target": "https://www.instagram.com", "type": "http", "interval": 60},
+    {"name": "Mobile Legends", "target": "https://m.mobilelegends.com", "type": "http", "interval": 60},
+    {"name": "Shopee", "target": "https://shopee.co.id", "type": "http", "interval": 60},
+    {"name": "Tokopedia", "target": "https://www.tokopedia.com", "type": "http", "interval": 60},
 ]
 
 # === Retry Settings ===
