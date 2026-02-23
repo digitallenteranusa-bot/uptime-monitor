@@ -3,17 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Uptime Monitor - Dashboard</title>
+    <title>{{ page_title | default('Uptime Monitor') }} - Dashboard</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
     <div class="container">
         <header>
             <div class="header-row">
-                <h1>Uptime Monitor</h1>
+                <h1>{{ page_title | default('Uptime Monitor') }}</h1>
                 <nav>
+                    <a href="/" class="nav-link {{ 'active' if active_page == 'network' else '' }}">Network</a>
+                    <a href="/web" class="nav-link {{ 'active' if active_page == 'web' else '' }}">Web Monitor</a>
                     <a href="/settings" class="nav-link">Pengaturan</a>
-                    <a href="/status" class="nav-link" target="_blank">Status Publik</a>
+                    <a href="{{ '/status/web' if group == 'web' else '/status' }}" class="nav-link" target="_blank">Status Publik</a>
                     <a href="/logout" class="nav-link">Logout</a>
                 </nav>
             </div>
@@ -48,6 +50,10 @@
                             <option value="http">HTTP</option>
                             <option value="tcp">TCP</option>
                             <option value="dns">DNS</option>
+                        </select>
+                        <select id="f-group">
+                            <option value="network" {{ 'selected' if group == 'network' else '' }}>Network</option>
+                            <option value="web" {{ 'selected' if group == 'web' else '' }}>Web</option>
                         </select>
                         <input type="number" id="f-port" placeholder="Port" min="1" max="65535" style="display:none">
                         <input type="number" id="f-interval" placeholder="Interval (s)" value="60" min="10" max="3600">
@@ -124,6 +130,11 @@
                 </select>
                 <label>Port <small>(khusus TCP)</small></label>
                 <input type="number" id="e-port" min="1" max="65535" placeholder="Kosongkan jika bukan TCP">
+                <label>Group</label>
+                <select id="e-group">
+                    <option value="network">Network</option>
+                    <option value="web">Web</option>
+                </select>
                 <label>Interval (detik)</label>
                 <input type="number" id="e-interval" value="60" min="10" max="3600">
                 <div class="modal-actions">
@@ -234,6 +245,7 @@
                 name: document.getElementById('f-name').value.trim(),
                 target: document.getElementById('f-target').value.trim(),
                 type: document.getElementById('f-type').value,
+                group: document.getElementById('f-group').value,
                 port: document.getElementById('f-port').value ? parseInt(document.getElementById('f-port').value) : null,
                 interval: parseInt(document.getElementById('f-interval').value) || 60,
             };
@@ -269,6 +281,7 @@
             document.getElementById('e-name').value = mon.name;
             document.getElementById('e-target').value = mon.target;
             document.getElementById('e-type').value = mon.type || 'ping';
+            document.getElementById('e-group').value = mon.group || 'network';
             document.getElementById('e-port').value = mon.port || '';
             document.getElementById('e-interval').value = mon.interval;
             document.getElementById('edit-msg').textContent = '';
@@ -284,6 +297,7 @@
                 name: document.getElementById('e-name').value.trim(),
                 target: document.getElementById('e-target').value.trim(),
                 type: document.getElementById('e-type').value,
+                group: document.getElementById('e-group').value,
                 port: document.getElementById('e-port').value ? parseInt(document.getElementById('e-port').value) : null,
                 interval: parseInt(document.getElementById('e-interval').value) || 60,
             };

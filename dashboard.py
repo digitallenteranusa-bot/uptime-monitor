@@ -117,7 +117,7 @@ async def dashboard_page(request: Request, session_token: str | None = Cookie(No
     if not user:
         return RedirectResponse("/login", status_code=302)
 
-    monitors = await database.get_monitors()
+    monitors = await database.get_monitors_by_group("network")
     monitors_data = []
     for m in monitors:
         uptime = await database.get_uptime_7d(m["id"])
@@ -126,6 +126,30 @@ async def dashboard_page(request: Request, session_token: str | None = Cookie(No
         "request": request,
         "monitors": monitors_data,
         "user": user,
+        "page_title": "Network Monitor",
+        "group": "network",
+        "active_page": "network",
+    })
+
+
+@app.get("/web", response_class=HTMLResponse)
+async def web_dashboard_page(request: Request, session_token: str | None = Cookie(None)):
+    user = verify_session(session_token)
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+
+    monitors = await database.get_monitors_by_group("web")
+    monitors_data = []
+    for m in monitors:
+        uptime = await database.get_uptime_7d(m["id"])
+        monitors_data.append({**m, "uptime_7d": uptime})
+    return templates.TemplateResponse("dashboard.html", {
+        "request": request,
+        "monitors": monitors_data,
+        "user": user,
+        "page_title": "Web Monitor",
+        "group": "web",
+        "active_page": "web",
     })
 
 
@@ -172,12 +196,25 @@ async def settings_page(request: Request, session_token: str | None = Cookie(Non
 
 @app.get("/status", response_class=HTMLResponse)
 async def status_page(request: Request):
-    monitors = await database.get_monitors()
+    monitors = await database.get_monitors_by_group("network")
     monitors_data = []
     for m in monitors:
         uptime = await database.get_uptime_7d(m["id"])
         monitors_data.append({**m, "uptime_7d": uptime})
     return templates.TemplateResponse("status.html", {
+        "request": request,
+        "monitors": monitors_data,
+    })
+
+
+@app.get("/status/web", response_class=HTMLResponse)
+async def status_web_page(request: Request):
+    monitors = await database.get_monitors_by_group("web")
+    monitors_data = []
+    for m in monitors:
+        uptime = await database.get_uptime_7d(m["id"])
+        monitors_data.append({**m, "uptime_7d": uptime})
+    return templates.TemplateResponse("status_web.html", {
         "request": request,
         "monitors": monitors_data,
     })
@@ -240,14 +277,17 @@ class MonitorCreate(BaseModel):
     type: str = "ping"
     port: int | None = None
     interval: int = 60
+    group: str = "network"
 
 
 @app.post("/api/monitors")
 async def api_add_monitor(data: MonitorCreate, user: str = Depends(require_auth)):
     if data.type not in ("ping", "http", "tcp", "dns"):
         return {"error": "Tipe tidak valid. Pilih: ping, http, tcp, dns"}
+    if data.group not in ("network", "web"):
+        return {"error": "Group tidak valid. Pilih: network, web"}
     try:
-        mon = await database.add_monitor(data.name, data.target, data.type, data.port, data.interval)
+        mon = await database.add_monitor(data.name, data.target, data.type, data.port, data.interval, data.group)
     except Exception as e:
         if "UNIQUE" in str(e):
             return {"error": "Target sudah ada"}
@@ -264,14 +304,17 @@ class MonitorEdit(BaseModel):
     type: str = "ping"
     port: int | None = None
     interval: int = 60
+    group: str = "network"
 
 
 @app.put("/api/monitors/{monitor_id}")
 async def api_edit_monitor(monitor_id: int, data: MonitorEdit, user: str = Depends(require_auth)):
     if data.type not in ("ping", "http", "tcp", "dns"):
         return {"error": "Tipe tidak valid. Pilih: ping, http, tcp, dns"}
+    if data.group not in ("network", "web"):
+        return {"error": "Group tidak valid. Pilih: network, web"}
     try:
-        mon = await database.edit_monitor(monitor_id, data.name, data.target, data.type, data.port, data.interval)
+        mon = await database.edit_monitor(monitor_id, data.name, data.target, data.type, data.port, data.interval, data.group)
     except Exception as e:
         if "UNIQUE" in str(e):
             return {"error": "Target sudah ada"}

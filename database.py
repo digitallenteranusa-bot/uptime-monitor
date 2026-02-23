@@ -57,7 +57,8 @@ async def init_db():
                 port INTEGER,
                 interval INTEGER NOT NULL DEFAULT 60,
                 status TEXT NOT NULL DEFAULT 'UNKNOWN',
-                last_down_at TEXT
+                last_down_at TEXT,
+                "group" TEXT NOT NULL DEFAULT 'network'
             );
             CREATE TABLE IF NOT EXISTS logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -76,6 +77,13 @@ async def init_db():
             );
         """)
         await db.commit()
+
+        # Migration: add group column if missing
+        cursor = await db.execute("PRAGMA table_info(monitors)")
+        columns = [row[1] for row in await cursor.fetchall()]
+        if "group" not in columns:
+            await db.execute('ALTER TABLE monitors ADD COLUMN "group" TEXT NOT NULL DEFAULT \'network\'')
+            await db.commit()
     finally:
         await release_db(db)
 
@@ -98,8 +106,13 @@ async def seed_monitors():
     try:
         for m in config.MONITORS:
             await db.execute(
-                "INSERT OR IGNORE INTO monitors (name, target, type, interval) VALUES (?, ?, ?, ?)",
-                (m["name"], m["target"], m.get("type", "ping"), m["interval"]),
+                'INSERT OR IGNORE INTO monitors (name, target, type, interval, "group") VALUES (?, ?, ?, ?, ?)',
+                (m["name"], m["target"], m.get("type", "ping"), m["interval"], m.get("group", "network")),
+            )
+            # Update group for existing monitors
+            await db.execute(
+                'UPDATE monitors SET "group"=? WHERE target=?',
+                (m.get("group", "network"), m["target"]),
             )
         await db.commit()
     finally:
@@ -107,12 +120,13 @@ async def seed_monitors():
 
 
 async def add_monitor(name: str, target: str, monitor_type: str = "ping",
-                      port: int | None = None, interval: int = 60) -> dict | None:
+                      port: int | None = None, interval: int = 60,
+                      group: str = "network") -> dict | None:
     db = await get_db()
     try:
         cursor = await db.execute(
-            "INSERT INTO monitors (name, target, type, port, interval) VALUES (?, ?, ?, ?, ?)",
-            (name, target, monitor_type, port, interval),
+            'INSERT INTO monitors (name, target, type, port, interval, "group") VALUES (?, ?, ?, ?, ?, ?)',
+            (name, target, monitor_type, port, interval, group),
         )
         await db.commit()
         monitor_id = cursor.lastrowid
@@ -124,12 +138,13 @@ async def add_monitor(name: str, target: str, monitor_type: str = "ping",
 
 
 async def edit_monitor(monitor_id: int, name: str, target: str, monitor_type: str = "ping",
-                       port: int | None = None, interval: int = 60) -> dict | None:
+                       port: int | None = None, interval: int = 60,
+                       group: str = "network") -> dict | None:
     db = await get_db()
     try:
         await db.execute(
-            "UPDATE monitors SET name=?, target=?, type=?, port=?, interval=? WHERE id=?",
-            (name, target, monitor_type, port, interval, monitor_id),
+            'UPDATE monitors SET name=?, target=?, type=?, port=?, interval=?, "group"=? WHERE id=?',
+            (name, target, monitor_type, port, interval, group, monitor_id),
         )
         await db.commit()
         cursor = await db.execute("SELECT * FROM monitors WHERE id=?", (monitor_id,))
@@ -154,6 +169,16 @@ async def get_monitors() -> list[dict]:
     db = await get_db()
     try:
         cursor = await db.execute("SELECT * FROM monitors")
+        rows = await cursor.fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        await release_db(db)
+
+
+async def get_monitors_by_group(group: str) -> list[dict]:
+    db = await get_db()
+    try:
+        cursor = await db.execute('SELECT * FROM monitors WHERE "group"=?', (group,))
         rows = await cursor.fetchall()
         return [dict(r) for r in rows]
     finally:

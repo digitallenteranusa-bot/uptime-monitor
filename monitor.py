@@ -39,13 +39,16 @@ async def check_ping(target: str) -> tuple[bool, float | None]:
 
 
 async def check_http(target: str) -> tuple[bool, float | None]:
-    """HTTP check - expects status 2xx. Returns (success, latency_ms)."""
+    """HTTP check - expects status 2xx/3xx. Returns (success, latency_ms)."""
     url = target if target.startswith("http") else f"http://{target}"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    }
     try:
         start = asyncio.get_event_loop().time()
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, timeout=aiohttp.ClientTimeout(total=10),
-                                   ssl=False) as resp:
+        async with aiohttp.ClientSession(headers=headers) as session:
+            async with session.get(url, timeout=aiohttp.ClientTimeout(total=15),
+                                   ssl=False, allow_redirects=True) as resp:
                 latency = (asyncio.get_event_loop().time() - start) * 1000
                 return 200 <= resp.status < 400, round(latency, 2)
     except Exception:
