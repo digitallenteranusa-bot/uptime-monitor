@@ -105,15 +105,19 @@ async def seed_monitors():
     db = await get_db()
     try:
         for m in config.MONITORS:
-            await db.execute(
-                'INSERT OR IGNORE INTO monitors (name, target, type, interval, "group") VALUES (?, ?, ?, ?, ?)',
-                (m["name"], m["target"], m.get("type", "ping"), m["interval"], m.get("group", "network")),
-            )
-            # Update group for existing monitors
-            await db.execute(
-                'UPDATE monitors SET "group"=? WHERE target=?',
-                (m.get("group", "network"), m["target"]),
-            )
+            # Update existing monitor by name (handles target URL changes e.g. https→http)
+            cursor = await db.execute("SELECT id FROM monitors WHERE name=?", (m["name"],))
+            existing = await cursor.fetchone()
+            if existing:
+                await db.execute(
+                    'UPDATE monitors SET target=?, type=?, interval=?, "group"=? WHERE id=?',
+                    (m["target"], m.get("type", "ping"), m["interval"], m.get("group", "network"), existing["id"]),
+                )
+            else:
+                await db.execute(
+                    'INSERT OR IGNORE INTO monitors (name, target, type, interval, "group") VALUES (?, ?, ?, ?, ?)',
+                    (m["name"], m["target"], m.get("type", "ping"), m["interval"], m.get("group", "network")),
+                )
         await db.commit()
     finally:
         await release_db(db)
