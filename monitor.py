@@ -13,6 +13,39 @@ import notifier
 
 logger = logging.getLogger("monitor")
 
+# ============================
+# Shared HTTP Session (connection reuse / keep-alive)
+# ============================
+
+_http_session: aiohttp.ClientSession | None = None
+_HTTP_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+}
+
+
+async def get_http_session() -> aiohttp.ClientSession:
+    global _http_session
+    if _http_session is None or _http_session.closed:
+        connector = aiohttp.TCPConnector(
+            limit=30,
+            ttl_dns_cache=300,
+            keepalive_timeout=60,
+            ssl=False,
+        )
+        _http_session = aiohttp.ClientSession(
+            headers=_HTTP_HEADERS,
+            connector=connector,
+            timeout=aiohttp.ClientTimeout(total=15),
+        )
+    return _http_session
+
+
+async def close_http_session():
+    global _http_session
+    if _http_session and not _http_session.closed:
+        await _http_session.close()
+        _http_session = None
+
 
 # ============================
 # Check Methods
@@ -39,18 +72,21 @@ async def check_ping(target: str) -> tuple[bool, float | None]:
 
 
 async def check_http(target: str) -> tuple[bool, float | None]:
-    """HTTP check - expects status 2xx/3xx. Returns (success, latency_ms)."""
+    """HTTP check - expects status 2xx/3xx. Uses shared session for connection reuse."""
     url = target if target.startswith("http") else f"http://{target}"
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    }
     try:
+        session = await get_http_session()
         start = asyncio.get_event_loop().time()
-        async with aiohttp.ClientSession(headers=headers) as session:
-            async with session.get(url, timeout=aiohttp.ClientTimeout(total=15),
-                                   ssl=False, allow_redirects=True) as resp:
-                latency = (asyncio.get_event_loop().time() - start) * 1000
-                return 200 <= resp.status < 400, round(latency, 2)
+        # HEAD request (ringan, tanpa download body)
+        async with session.head(url, allow_redirects=True) as resp:
+            latency = (asyncio.get_event_loop().time() - start) * 1000
+            # Fallback ke GET jika server tidak support HEAD (405)
+            if resp.status == 405:
+                start = asyncio.get_event_loop().time()
+                async with session.get(url, allow_redirects=True) as resp2:
+                    latency = (asyncio.get_event_loop().time() - start) * 1000
+                    return 200 <= resp2.status < 400, round(latency, 2)
+            return 200 <= resp.status < 400, round(latency, 2)
     except Exception:
         return False, None
 
@@ -213,6 +249,7 @@ def stop_all_tasks():
         if not task.done():
             task.cancel()
     _active_tasks.clear()
+    asyncio.ensure_future(close_http_session())
     logger.info("All monitoring tasks cancelled")
 
 
