@@ -5,11 +5,52 @@ import re
 import socket
 from datetime import datetime, timezone
 
+import ssl as _ssl
+
+import aiohttp
+
 import config
 import database
 import notifier
 
 logger = logging.getLogger("monitor")
+
+# ============================
+# Shared HTTP Session
+# ============================
+
+_http_session: aiohttp.ClientSession | None = None
+
+# SSL context yang skip verifikasi sertifikat
+_ssl_ctx = _ssl.create_default_context()
+_ssl_ctx.check_hostname = False
+_ssl_ctx.verify_mode = _ssl.CERT_NONE
+
+
+async def get_http_session() -> aiohttp.ClientSession:
+    global _http_session
+    if _http_session is None or _http_session.closed:
+        connector = aiohttp.TCPConnector(
+            limit=30,
+            ttl_dns_cache=300,
+            keepalive_timeout=60,
+            ssl=_ssl_ctx,
+        )
+        _http_session = aiohttp.ClientSession(
+            headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            },
+            connector=connector,
+            timeout=aiohttp.ClientTimeout(total=15),
+        )
+    return _http_session
+
+
+async def close_http_session():
+    global _http_session
+    if _http_session and not _http_session.closed:
+        await _http_session.close()
+        _http_session = None
 
 
 # ============================
@@ -37,26 +78,16 @@ async def check_ping(target: str) -> tuple[bool, float | None]:
 
 
 async def check_http(target: str) -> tuple[bool, float | None]:
-    """HTTP check via curl subprocess. Paling reliable untuk semua website."""
+    """HTTP check via shared aiohttp session dengan proper SSL context."""
     url = target if target.startswith("http") else f"http://{target}"
     try:
-        proc = await asyncio.create_subprocess_exec(
-            "curl", "-o", "/dev/null", "-s", "-w", "%{http_code} %{time_total}",
-            "-L", "-m", "15", "-k",
-            "-A", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            url,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=20)
-        output = stdout.decode(errors="ignore").strip()
-        parts = output.split()
-        if len(parts) >= 2:
-            status_code = int(parts[0])
-            latency = float(parts[1]) * 1000  # detik → ms
-            return status_code > 0 and status_code < 500, round(latency, 2)
-        return False, None
-    except (asyncio.TimeoutError, OSError, ValueError):
+        session = await get_http_session()
+        start = asyncio.get_event_loop().time()
+        async with session.get(url, allow_redirects=True, ssl=_ssl_ctx) as resp:
+            latency = (asyncio.get_event_loop().time() - start) * 1000
+            return resp.status < 500, round(latency, 2)
+    except Exception as e:
+        logger.debug("HTTP check failed for %s: %s", target, e)
         return False, None
 
 
@@ -218,6 +249,7 @@ def stop_all_tasks():
         if not task.done():
             task.cancel()
     _active_tasks.clear()
+    asyncio.ensure_future(close_http_session())
     logger.info("All monitoring tasks cancelled")
 
 
