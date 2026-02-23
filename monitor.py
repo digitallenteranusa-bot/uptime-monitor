@@ -72,21 +72,17 @@ async def check_ping(target: str) -> tuple[bool, float | None]:
 
 
 async def check_http(target: str) -> tuple[bool, float | None]:
-    """HTTP check - expects status 2xx/3xx. Uses shared session for connection reuse."""
+    """HTTP check - site dianggap UP selama server merespons (status < 500).
+    Pakai GET (banyak site block HEAD). Body tidak di-read, hanya cek status."""
     url = target if target.startswith("http") else f"http://{target}"
     try:
         session = await get_http_session()
         start = asyncio.get_event_loop().time()
-        # HEAD request (ringan, tanpa download body)
-        async with session.head(url, allow_redirects=True) as resp:
+        async with session.get(url, allow_redirects=True) as resp:
             latency = (asyncio.get_event_loop().time() - start) * 1000
-            # Fallback ke GET jika server tidak support HEAD (405)
-            if resp.status == 405:
-                start = asyncio.get_event_loop().time()
-                async with session.get(url, allow_redirects=True) as resp2:
-                    latency = (asyncio.get_event_loop().time() - start) * 1000
-                    return 200 <= resp2.status < 400, round(latency, 2)
-            return 200 <= resp.status < 400, round(latency, 2)
+            # Status < 500 = server hidup (2xx/3xx/4xx semua UP)
+            # Hanya 5xx dan connection error = DOWN
+            return resp.status < 500, round(latency, 2)
     except Exception:
         return False, None
 
