@@ -4,6 +4,7 @@ import platform
 import re
 import socket
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 
 import ssl as _ssl
 
@@ -78,17 +79,33 @@ async def check_ping(target: str) -> tuple[bool, float | None]:
 
 
 async def check_http(target: str) -> tuple[bool, float | None]:
-    """HTTP check via shared aiohttp session dengan proper SSL context."""
+    """HTTP check. Latency = TCP connect time (network RTT murni, seperti ping)."""
     url = target if target.startswith("http") else f"http://{target}"
+    parsed = urlparse(url)
+    hostname = parsed.hostname
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+
+    # 1) Latency: TCP connect only (SYN→SYN-ACK = network RTT, sama seperti ping)
+    latency = None
+    try:
+        start = asyncio.get_event_loop().time()
+        _, writer = await asyncio.wait_for(
+            asyncio.open_connection(hostname, port), timeout=10
+        )
+        latency = round((asyncio.get_event_loop().time() - start) * 1000, 2)
+        writer.close()
+        await writer.wait_closed()
+    except Exception:
+        pass
+
+    # 2) UP/DOWN: HTTP status check
     try:
         session = await get_http_session()
-        start = asyncio.get_event_loop().time()
         async with session.get(url, allow_redirects=True, ssl=_ssl_ctx) as resp:
-            latency = (asyncio.get_event_loop().time() - start) * 1000
-            return resp.status < 500, round(latency, 2)
+            return resp.status < 500, latency
     except Exception as e:
         logger.debug("HTTP check failed for %s: %s", target, e)
-        return False, None
+        return False, latency
 
 
 async def check_tcp(target: str, port: int) -> tuple[bool, float | None]:
